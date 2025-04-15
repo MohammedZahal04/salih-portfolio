@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useState, useRef, useEffect } from "react";
 
 interface MediaType {
@@ -60,12 +60,10 @@ const projects: ProjectType[] = [
 ];
 
 export default function Projects() {
-  const [selectedProject, setSelectedProject] = useState<ProjectType | null>(
-    null
-  );
+  const [selectedProject, setSelectedProject] = useState<ProjectType | null>(null);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const videoRefs = useRef<Record<number, HTMLVideoElement | null>>({});
 
-  // Setup intersection observer to play videos only when visible
   useEffect(() => {
     const options = {
       root: null,
@@ -77,36 +75,30 @@ export default function Projects() {
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
           const video = entry.target as HTMLVideoElement;
-          // Try to play the video when it becomes visible
           video.play().catch((error) => {
             console.warn("Auto-play was prevented:", error);
           });
         } else {
-          // Pause video when not visible
           (entry.target as HTMLVideoElement).pause();
         }
       });
     }, options);
 
-    // Observe all video elements
     Object.values(videoRefs.current).forEach((ref) => {
-      if (ref) {
-        observer.observe(ref);
-      }
+      if (ref) observer.observe(ref);
     });
 
-    return () => {
-      // Clean up by disconnecting the observer when component unmounts
-      observer.disconnect();
-    };
+    return () => observer.disconnect();
   }, []);
 
   const openModal = (project: ProjectType) => {
     setSelectedProject(project);
+    document.body.style.overflow = "hidden";
   };
 
   const closeModal = () => {
     setSelectedProject(null);
+    document.body.style.overflow = "auto";
   };
 
   const renderMedia = (
@@ -120,7 +112,7 @@ export default function Projects() {
           src={media.src || "/placeholder.svg"}
           alt=""
           fill
-          className="object-cover rounded"
+          className="object-cover rounded-lg transition-transform duration-300 group-hover:scale-105"
         />
       );
     } else if (media.type === "video") {
@@ -138,10 +130,9 @@ export default function Projects() {
           controls={isModal}
           preload="metadata"
           className={`w-full ${
-            isModal ? "h-64" : "h-48 md:h-64"
-          } object-cover rounded`}
+            isModal ? "h-[60vh]" : "h-64"
+          } object-cover rounded-lg transition-transform duration-300 group-hover:scale-105`}
           onCanPlay={(e) => {
-            // Add a failsafe for autoplay
             if (!isModal) {
               (e.target as HTMLVideoElement)
                 .play()
@@ -158,35 +149,49 @@ export default function Projects() {
   };
 
   return (
-    <section id="projects" className="py-20 bg-quaternary">
-      <div className="container mx-auto px-6">
-        <h2 className="text-3xl font-bold mb-12 text-center">Featured Work</h2>
+    <section id="projects" className="section bg-background">
+      <div className="container">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-16"
+        >
+          <h2 className="text-4xl md:text-5xl font-bold mb-4">Featured Work</h2>
+          <p className="text-lg text-text-secondary max-w-2xl mx-auto">
+            Explore my latest projects and creative endeavors
+          </p>
+        </motion.div>
 
-        {/* Grid of Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
           {projects.map((project, index) => (
             <motion.div
               key={index}
-              className="bg-white rounded-lg shadow-lg overflow-hidden cursor-pointer"
+              className="group relative overflow-hidden rounded-xl bg-card-background shadow-lg cursor-pointer"
               initial={{ opacity: 0, y: 50 }}
               whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
+              transition={{ duration: 0.5, delay: index * 0.1 }}
               viewport={{ once: true }}
+              onMouseEnter={() => setHoveredIndex(index)}
+              onMouseLeave={() => setHoveredIndex(null)}
               onClick={() => openModal(project)}
             >
-              <div className="relative">
+              <div className="relative aspect-video">
                 {renderMedia(project.media, false, index)}
+                <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               </div>
               <div className="p-6">
-                <h3 className="text-xl font-semibold mb-2">{project.title}</h3>
-                <p className="text-gray-600 mb-4 text-justify text-loose">
+                <h3 className="text-xl font-semibold mb-2 group-hover:text-accent transition-colors">
+                  {project.title}
+                </h3>
+                <p className="text-text-secondary mb-4 line-clamp-2">
                   {project.description}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {project.tags.map((tag, tagIndex) => (
                     <span
                       key={tagIndex}
-                      className="bg-tertiary text-primary px-3 py-1 rounded-full text-sm"
+                      className="bg-accent/10 text-accent px-3 py-1 rounded-full text-sm"
                     >
                       {tag}
                     </span>
@@ -197,43 +202,49 @@ export default function Projects() {
           ))}
         </div>
 
-        {/* Modal */}
-        {selectedProject && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <AnimatePresence>
+          {selectedProject && (
             <motion.div
-              className="bg-white rounded-lg p-6 max-w-lg w-full mx-4"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-background/95 backdrop-blur-md z-50 flex items-center justify-center p-4"
+              onClick={closeModal}
             >
-              <div className="relative h-64 mb-4">
-                {renderMedia(selectedProject.media, true)}
-              </div>
-              <h3 className="text-2xl font-semibold mb-2">
-                {selectedProject.title}
-              </h3>
-              <p className="text-gray-600 mb-4">
-                {selectedProject.description}
-              </p>
-              <div className="flex flex-wrap gap-2 mb-6">
-                {selectedProject.tags.map((tag, tagIndex) => (
-                  <span
-                    key={tagIndex}
-                    className="bg-tertiary text-primary px-3 py-1 rounded-full text-sm"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-              <button
-                onClick={closeModal}
-                className="bg-primary text-white px-4 py-2 rounded hover:bg-opacity-90"
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="bg-card-background rounded-xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
               >
-                Close
-              </button>
+                <button
+                  onClick={closeModal}
+                  className="absolute top-4 right-4 text-text-secondary hover:text-accent transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+                <div className="relative aspect-video mb-6">
+                  {renderMedia(selectedProject.media, true)}
+                </div>
+                <h3 className="text-2xl font-bold mb-4">{selectedProject.title}</h3>
+                <p className="text-text-secondary mb-6">{selectedProject.description}</p>
+                <div className="flex flex-wrap gap-2">
+                  {selectedProject.tags.map((tag, tagIndex) => (
+                    <span
+                      key={tagIndex}
+                      className="bg-accent/10 text-accent px-3 py-1 rounded-full text-sm"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </motion.div>
             </motion.div>
-          </div>
-        )}
+          )}
+        </AnimatePresence>
       </div>
     </section>
   );
